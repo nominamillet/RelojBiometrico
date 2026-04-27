@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checador Facial Millet</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <style>
+        :root { --primary-blue: #0d5c75; --panel-bg: #93abbc; }
+        body { background-color: #f4f7f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card-panel { 
+            background-color: var(--panel-bg); 
+            border-radius: 30px; 
+            padding: 25px; 
+            max-width: 450px; 
+            margin: 20px auto; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+        }
+        .video-container { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #000; line-height: 0; }
+        video { width: 100%; height: auto; }
+        canvas { position: absolute; top: 0; left: 0; }
+        .btn-main { background-color: var(--primary-blue); color: white; font-weight: bold; padding: 12px; border-radius: 12px; width: 100%; border: none; transition: 0.3s; }
+        .btn-main:active { transform: scale(0.98); }
+        .status-msg { font-weight: bold; padding: 10px; border-radius: 8px; margin-top: 10px; text-align: center; color: white; }
+        .loading-overlay { position: fixed; inset: 0; background: white; z-index: 2000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    </style>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay">
+    <div class="spinner-border text-info" style="width: 3rem; height: 3rem;"></div>
+    <p class="mt-3 font-weight-bold">MILLET: Iniciando IA...</p>
+</div>
+
+<div class="container py-4">
+    <div id="pantalla-inicio" class="card-panel">
+        <h4 class="text-center text-white font-weight-bold mb-4">SISTEMA MILLET</h4>
+        <div class="form-group">
+            <label class="text-white font-weight-bold small">SELECCIONAR SUCURSAL:</label>
+            <select id="sel-sucursal" class="form-control form-control-lg"></select>
+        </div>
+        <button class="btn-main mt-3" onclick="iniciarModo('checador')">INICIAR CHECADOR</button>
+        <button class="btn btn-link btn-sm w-100 mt-4 text-white" onclick="iniciarModo('config')">⚙️ Configuración de Rostros</button>
+    </div>
+
+    <div id="pantalla-camara" class="card-panel d-none">
+        <h3 id="txt-titulo" class="text-white text-center h5 mb-3">SUREÑO</h3>
+        <div class="video-container" id="video-container">
+            <video id="video" autoplay muted playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        <div id="txt-status" class="status-msg">Iniciando cámara...</div>
+        
+        <div id="controles-config" class="d-none mt-3">
+            <input type="text" id="reg-nombre" class="form-control mb-2" placeholder="Nombre del empleado">
+            <input type="number" id="reg-id" class="form-control mb-2" placeholder="ID o Número de Reloj">
+            <button id="btn-capturar" class="btn btn-warning font-weight-bold w-100" onclick="capturarSecuencia()">📸 CAPTURAR (0/3)</button>
+        </div>
+
+        <button class="btn btn-dark w-100 mt-4" onclick="window.location.reload()">VOLVER AL INICIO</button>
+    </div>
+</div>
+
+<script>
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw3RpHevpBvH7v9SzTy0w61rL1n_n60AM45n7JLxl4NoNzRPI3FXdJ8sQ92NIsm2aUP/exec"; // Reemplaza con tu URL
+    let faceMatcher = null;
+    let modoActual = "";
+    let tempDescs = [];
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    let stream = null;
+
+    window.onload = async () => {
+        try {
+            const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/weights';
+            await Promise.all([
+                faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+            ]);
+
+            const response = await fetch(WEB_APP_URL, { 
+                method: 'POST', 
+                body: JSON.stringify({ action: "getInitialData" }) 
+            });
+            const data = await response.json();
+
+            // Llenar Sucursales
+            const sel = document.getElementById("sel-sucursal");
+            data.sucursales.forEach(s => {
+                let opt = document.createElement("option"); opt.text = s; sel.add(opt);
+            });
+
+            // Preparar Base de Datos Facial
+            if (data.rostros && data.rostros.length > 0) {
+                const labeled = data.rostros.map(r => {
+                    const desc = JSON.parse(r[2]).map(arr => new Float32Array(arr));
+                    return new faceapi.LabeledFaceDescriptors(String(r[1]), desc);
+                });
+                faceMatcher = new faceapi.FaceMatcher(labeled, 0.5);
+            }
+
+            document.getElementById("loading").classList.add("d-none");
+        } catch (e) {
+            alert("Error de conexión: " + e);
+        }
+    };
+
+    async function iniciarModo(modo) {
+        modoActual = modo;
+        document.getElementById("pantalla-inicio").classList.add("d-none");
+        document.getElementById("pantalla-camara").classList.remove("d-none");
+        
+        if(modo === 'config') {
+            document.getElementById("txt-titulo").innerText = "REGISTRO DE PERSONAL";
+            document.getElementById("controles-config").classList.remove("d-none");
+        } else {
+            document.getElementById("txt-titulo").innerText = document.getElementById("sel-sucursal").value;
+        }
+
+        // Iniciar flujo de video
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+        video.srcObject = stream;
+
+        video.onplay = () => {
+            const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
+            faceapi.matchDimensions(canvas, displaySize);
+            if(modo === 'checador') detectarBucle();
+        };
+    }
+
+    async function detectarBucle() {
+        if(modoActual !== 'checador') return;
+
+        const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
+        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+                                      .withFaceLandmarks()
+                                      .withFaceDescriptor();
+
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (detection) {
+            const resized = faceapi.resizeResults(detection, displaySize);
+            
+            // Dibujar recuadro de feedback
+            const box = resized.detection.box;
+            ctx.strokeStyle = '#00ffcc';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+            if(faceMatcher) {
+                const match = faceMatcher.findBestMatch(detection.descriptor);
+                if(match.label !== "unknown" && match.distance < 0.45) {
+                    registrarAsistencia(match.label);
+                    return; // Detener bucle tras éxito
+                }
+            }
+        }
+        requestAnimationFrame(detectarBucle);
+    }
+
+    async function registrarAsistencia(nombre) {
+        const status = document.getElementById("txt-status");
+        status.innerText = "¡HOLA " + nombre + "! REGISTRADO.";
+        status.style.backgroundColor = "#28a745";
+        
+        if(navigator.vibrate) navigator.vibrate(200);
+
+        await fetch(WEB_APP_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify({
+                action: "registrarChecada",
+                nombre: nombre,
+                sucursal: document.getElementById("txt-titulo").innerText
+            })
+        });
+
+        setTimeout(() => {
+            status.innerText = "Buscando rostro...";
+            status.style.backgroundColor = "transparent";
+            detectarBucle();
+        }, 5000);
+    }
+
+    async function capturarSecuencia() {
+        const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+        
+        if(!det) return alert("No se ve un rostro claro.");
+
+        tempDescs.push(Array.from(det.descriptor));
+        document.getElementById("btn-capturar").innerText = `📸 CAPTURAR (${tempDescs.length}/3)`;
+
+        if(tempDescs.length >= 3) {
+            const nombre = document.getElementById("reg-nombre").value;
+            const id = document.getElementById("reg-id").value;
+            if(!nombre || !id) return alert("Datos incompletos.");
+
+            document.getElementById("txt-status").innerText = "Guardando en nube...";
+            
+            await fetch(WEB_APP_URL, {
+                method: 'POST',
+                body: JSON.stringify({
+                    action: "registrarUsuario",
+                    nombre: nombre,
+                    id: id,
+                    descriptores: JSON.stringify(tempDescs)
+                })
+            });
+            
+            alert("Empleado guardado con éxito.");
+            window.location.reload();
+        }
+    }
+</script>
+
+</body>
+</html>
