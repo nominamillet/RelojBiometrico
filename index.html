@@ -5,216 +5,469 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Checador Facial Millet</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <style>
-        :root { --primary-blue: #0d5c75; --panel-bg: #93abbc; }
-        body { background-color: #f4f7f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .card-panel { 
-            background-color: var(--panel-bg); 
-            border-radius: 30px; 
-            padding: 25px; 
-            max-width: 450px; 
-            margin: 20px auto; 
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+        :root {
+            --primary-blue: #0d5c75;
+            --panel-bg: #93abbc;
         }
-        .video-container { position: relative; width: 100%; border-radius: 15px; overflow: hidden; background: #000; line-height: 0; }
-        video { width: 100%; height: auto; }
-        canvas { position: absolute; top: 0; left: 0; }
-        .btn-main { background-color: var(--primary-blue); color: white; font-weight: bold; padding: 12px; border-radius: 12px; width: 100%; border: none; transition: 0.3s; }
-        .btn-main:active { transform: scale(0.98); }
-        .status-msg { font-weight: bold; padding: 10px; border-radius: 8px; margin-top: 10px; text-align: center; color: white; }
-        .loading-overlay { position: fixed; inset: 0; background: white; z-index: 2000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+
+        body {
+            background-color: #f4f7f9;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .card-panel {
+            background-color: var(--panel-bg);
+            border-radius: 30px;
+            padding: 25px;
+            max-width: 460px;
+            margin: 20px auto;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            border-radius: 15px;
+            overflow: hidden;
+            background: #000;
+            line-height: 0;
+        }
+
+        video {
+            width: 100%;
+            height: auto;
+            transform: scaleX(-1);
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform: scaleX(-1);
+        }
+
+        .btn-main {
+            background-color: var(--primary-blue);
+            color: white;
+            font-weight: bold;
+            padding: 12px;
+            border-radius: 12px;
+            width: 100%;
+            border: none;
+            transition: 0.25s;
+        }
+
+            .btn-main:active {
+                transform: scale(0.98);
+            }
+
+        .status-msg {
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 10px;
+            margin-top: 12px;
+            text-align: center;
+            color: white;
+            background-color: rgba(0,0,0,0.25);
+        }
+
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: white;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .ubicacion-box {
+            background: rgba(255,255,255,0.2);
+            border-radius: 12px;
+            padding: 10px 14px;
+            color: #fff;
+        }
     </style>
 </head>
 <body>
 
-<div id="loading" class="loading-overlay">
-    <div class="spinner-border text-info" style="width: 3rem; height: 3rem;"></div>
-    <p class="mt-3 font-weight-bold">MILLET: Iniciando IA...</p>
-</div>
-
-<div class="container py-4">
-    <div id="pantalla-inicio" class="card-panel">
-        <h4 class="text-center text-white font-weight-bold mb-4">SISTEMA MILLET</h4>
-        <div class="form-group">
-            <label class="text-white font-weight-bold small">SELECCIONAR SUCURSAL:</label>
-            <select id="sel-sucursal" class="form-control form-control-lg"></select>
-        </div>
-        <button class="btn-main mt-3" onclick="iniciarModo('checador')">INICIAR CHECADOR</button>
-        <button class="btn btn-link btn-sm w-100 mt-4 text-white" onclick="iniciarModo('config')">⚙️ Configuración de Rostros</button>
+    <div id="loading" class="loading-overlay">
+        <div class="spinner-border text-info" style="width: 3rem; height: 3rem;"></div>
+        <p class="mt-3 font-weight-bold text-center">MILLET: Iniciando IA y tablas...</p>
     </div>
 
-    <div id="pantalla-camara" class="card-panel d-none">
-        <h3 id="txt-titulo" class="text-white text-center h5 mb-3">SUREÑO</h3>
-        <div class="video-container" id="video-container">
-            <video id="video" autoplay muted playsinline></video>
-            <canvas id="canvas"></canvas>
-        </div>
-        <div id="txt-status" class="status-msg">Iniciando cámara...</div>
-        
-        <div id="controles-config" class="d-none mt-3">
-            <input type="text" id="reg-nombre" class="form-control mb-2" placeholder="Nombre del empleado">
-            <input type="number" id="reg-id" class="form-control mb-2" placeholder="ID o Número de Reloj">
-            <button id="btn-capturar" class="btn btn-warning font-weight-bold w-100" onclick="capturarSecuencia()">📸 CAPTURAR (0/3)</button>
+    <div class="container py-3">
+        <!-- PANTALLA INICIO -->
+        <div id="pantalla-inicio" class="card-panel">
+            <h4 class="text-center text-white font-weight-bold mb-4">SISTEMA MILLET</h4>
+            <div class="form-group">
+                <label class="text-white font-weight-bold small">SELECCIONAR SUCURSAL:</label>
+                <select id="sel-sucursal" class="form-control form-control-lg"></select>
+            </div>
+            <button class="btn-main mt-3" onclick="iniciarModo('checador')">INICIAR CHECADOR</button>
+            <button class="btn btn-link btn-sm w-100 mt-4 text-white" onclick="iniciarModo('config')">⚙️ Registro / Configuración de Rostros</button>
         </div>
 
-        <button class="btn btn-dark w-100 mt-4" onclick="window.location.reload()">VOLVER AL INICIO</button>
+        <!-- PANTALLA CÁMARA -->
+        <div id="pantalla-camara" class="card-panel d-none">
+            <h3 id="txt-titulo" class="text-white text-center h5 font-weight-bold mb-3"></h3>
+            <div class="video-container" id="video-container">
+                <video id="video" autoplay muted playsinline></video>
+                <canvas id="canvas"></canvas>
+            </div>
+            <div id="txt-status" class="status-msg">Iniciando cámara...</div>
+
+            <!-- CONTROLES DE REGISTRO -->
+            <div id="controles-config" class="d-none mt-3">
+                <input type="text" id="reg-nombre" class="form-control mb-2" placeholder="Nombre del empleado">
+                <input type="number" id="reg-id" class="form-control mb-2" placeholder="ID o Número de Reloj">
+
+                <div class="ubicacion-box mb-3">
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input" id="chk-ubicacion" onchange="toggleUbicacionRegistro()">
+                        <label class="custom-control-label font-weight-bold" for="chk-ubicacion">
+                            Requerir ubicación al checar (opcional)
+                        </label>
+                    </div>
+                    <small id="info-ubicacion-reg" class="d-block mt-1 text-light">
+                        Si no se marca, el empleado podrá checar sin validación de ubicación.
+                    </small>
+                </div>
+
+                <button id="btn-capturar" class="btn btn-warning font-weight-bold w-100" onclick="capturarSecuencia()">
+                    📸 CAPTURAR EN VIDEO (0/3)
+                </button>
+            </div>
+
+            <button class="btn btn-dark w-100 mt-4" onclick="volverInicio()">VOLVER AL INICIO</button>
+        </div>
     </div>
-</div>
 
-<script>
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw3RpHevpBvH7v9SzTy0w61rL1n_n60AM45n7JLxl4NoNzRPI3FXdJ8sQ92NIsm2aUP/exec"; // Reemplaza con tu URL
-    let faceMatcher = null;
-    let modoActual = "";
-    let tempDescs = [];
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    let stream = null;
+    <script>
+            const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbytV6i_jSeHoBrj_uAeSEvL857ZVMDOFpedKa6OqABPRBQLeMp3TGfAxp7Hu6R35XI/exec";
+            const UMBRAL_ROSTRO = 0.46; // Menor = más estricto / mayor fidelidad
+            const RADIO_METROS = 10;
 
-    window.onload = async () => {
-        try {
-            const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/weights';
-            await Promise.all([
-                faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-                faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-                faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-            ]);
+            let faceMatcher = null;
+            let mapaUbicacionEmpleados = {}; // { "nombre en minusculas": true/false }
+            let modoActual = "";
+            let tempDescs = [];
+            let coordsRegistro = null;
+            let procesandoChecada = false;
+            let loopId = null;
+            let stream = null;
 
-            const response = await fetch(WEB_APP_URL, { 
-                method: 'POST', 
-                body: JSON.stringify({ action: "getInitialData" }) 
-            });
-            const data = await response.json();
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
 
-            // Llenar Sucursales
-            const sel = document.getElementById("sel-sucursal");
-            data.sucursales.forEach(s => {
-                let opt = document.createElement("option"); opt.text = s; sel.add(opt);
-            });
+            window.onload = async () => {
+                try {
+                    const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/weights';
+                    await Promise.all([
+                        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                    ]);
 
-            // Preparar Base de Datos Facial
-            if (data.rostros && data.rostros.length > 0) {
-                const labeled = data.rostros.map(r => {
-                    const desc = JSON.parse(r[2]).map(arr => new Float32Array(arr));
-                    return new faceapi.LabeledFaceDescriptors(String(r[1]), desc);
-                });
-                faceMatcher = new faceapi.FaceMatcher(labeled, 0.5);
+                    const response = await fetch(WEB_APP_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ action: "getInitialData" })
+                    });
+                    const data = await response.json();
+
+                    const sel = document.getElementById("sel-sucursal");
+                    (data.sucursales || []).forEach(s => {
+                        const opt = document.createElement("option");
+                        opt.value = s;
+                        opt.text = s;
+                        sel.add(opt);
+                    });
+
+                    if (data.rostros && data.rostros.length > 0) {
+                        const labeled = [];
+                        data.rostros.forEach(r => {
+                            const nombre = String(r[1]).trim();
+                            const flagUbic = String(r[3] || "").trim().toUpperCase();
+                            mapaUbicacionEmpleados[nombre.toLowerCase()] = (flagUbic === "SI" || flagUbic === "SÍ" || flagUbic === "TRUE" || flagUbic === "1");
+
+                            const descArr = JSON.parse(r[2]).map(arr => new Float32Array(arr));
+                            if (descArr.length > 0) {
+                                labeled.push(new faceapi.LabeledFaceDescriptors(nombre, descArr));
+                            }
+                        });
+                        if (labeled.length > 0) {
+                            faceMatcher = new faceapi.FaceMatcher(labeled, UMBRAL_ROSTRO);
+                        }
+                    }
+
+                    document.getElementById("loading").classList.add("d-none");
+                } catch (e) {
+                    console.error(e);
+                    alert("Error al cargar modelos o datos: " + e.message);
+                }
+            };
+
+            function toggleUbicacionRegistro() {
+                const chk = document.getElementById("chk-ubicacion");
+                const info = document.getElementById("info-ubicacion-reg");
+                coordsRegistro = null;
+
+                if (!chk.checked) {
+                    info.innerText = "Si no se marca, el empleado podrá checar sin validación de ubicación.";
+                    return;
+                }
+
+                info.innerText = "Solicitando ubicación GPS...";
+                obtenerUbicacionActual()
+                    .then(pos => {
+                        coordsRegistro = pos;
+                        info.innerText = `Ubicación lista (${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}).`;
+                    })
+                    .catch(err => {
+                        chk.checked = false;
+                        info.innerText = "No se pudo obtener ubicación: " + err;
+                        alert("No se obtuvo permiso o señal GPS. Se desmarcó la opción de ubicación.");
+                    });
             }
 
-            document.getElementById("loading").classList.add("d-none");
-        } catch (e) {
-            alert("Error de conexión: " + e);
-        }
-    };
+            function obtenerUbicacionActual() {
+                return new Promise((resolve, reject) => {
+                    if (!navigator.geolocation) {
+                        return reject("El navegador no soporta geolocalización.");
+                    }
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            resolve({
+                                lat: position.coords.latitude,
+                                lng: position.coords.longitude,
+                                accuracy: position.coords.accuracy
+                            });
+                        },
+                        (error) => {
+                            reject(error.message || "Permiso de ubicación denegado.");
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 10000,
+                            maximumAge: 0
+                        }
+                    );
+                });
+            }
 
-    async function iniciarModo(modo) {
-        modoActual = modo;
-        document.getElementById("pantalla-inicio").classList.add("d-none");
-        document.getElementById("pantalla-camara").classList.remove("d-none");
-        
-        if(modo === 'config') {
-            document.getElementById("txt-titulo").innerText = "REGISTRO DE PERSONAL";
-            document.getElementById("controles-config").classList.remove("d-none");
-        } else {
-            document.getElementById("txt-titulo").innerText = document.getElementById("sel-sucursal").value;
-        }
+            async function iniciarModo(modo) {
+                modoActual = modo;
+                procesandoChecada = false;
+                tempDescs = [];
+                document.getElementById("btn-capturar").innerText = "📸 CAPTURAR EN VIDEO (0/3)";
 
-        // Iniciar flujo de video
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-        video.srcObject = stream;
+                document.getElementById("pantalla-inicio").classList.add("d-none");
+                document.getElementById("pantalla-camara").classList.remove("d-none");
 
-        video.onplay = () => {
-            const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
-            faceapi.matchDimensions(canvas, displaySize);
-            if(modo === 'checador') detectarBucle();
-        };
-    }
+                if (modo === 'config') {
+                    document.getElementById("txt-titulo").innerText = "REGISTRO DE PERSONAL";
+                    document.getElementById("controles-config").classList.remove("d-none");
+                } else {
+                    document.getElementById("txt-titulo").innerText = document.getElementById("sel-sucursal").value;
+                    document.getElementById("controles-config").classList.add("d-none");
+                }
 
-    async function detectarBucle() {
-        if(modoActual !== 'checador') return;
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+                        audio: false
+                    });
+                    video.srcObject = stream;
+                    document.getElementById("txt-status").innerText = "Buscando rostro...";
 
-        const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
-        const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
-                                      .withFaceLandmarks()
-                                      .withFaceDescriptor();
-
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        if (detection) {
-            const resized = faceapi.resizeResults(detection, displaySize);
-            
-            // Dibujar recuadro de feedback
-            const box = resized.detection.box;
-            ctx.strokeStyle = '#00ffcc';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(box.x, box.y, box.width, box.height);
-
-            if(faceMatcher) {
-                const match = faceMatcher.findBestMatch(detection.descriptor);
-                if(match.label !== "unknown" && match.distance < 0.45) {
-                    registrarAsistencia(match.label);
-                    return; // Detener bucle tras éxito
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        const displaySize = { width: video.clientWidth, height: video.clientHeight };
+                        faceapi.matchDimensions(canvas, displaySize);
+                        if (modo === 'checador') {
+                            detectarBucle();
+                        }
+                    };
+                } catch (err) {
+                    document.getElementById("txt-status").innerText = "Error de cámara: " + err.message;
                 }
             }
-        }
-        requestAnimationFrame(detectarBucle);
-    }
 
-    async function registrarAsistencia(nombre) {
-        const status = document.getElementById("txt-status");
-        status.innerText = "¡HOLA " + nombre + "! REGISTRADO.";
-        status.style.backgroundColor = "#28a745";
-        
-        if(navigator.vibrate) navigator.vibrate(200);
+            async function detectarBucle() {
+                if (modoActual !== 'checador' || procesandoChecada) return;
 
-        await fetch(WEB_APP_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify({
-                action: "registrarChecada",
-                nombre: nombre,
-                sucursal: document.getElementById("txt-titulo").innerText
-            })
-        });
+                if (video.readyState === 4 && faceMatcher) {
+                    const displaySize = { width: video.clientWidth, height: video.clientHeight };
+                    if (displaySize.width > 0 && displaySize.height > 0) {
+                        faceapi.matchDimensions(canvas, displaySize);
+                    }
 
-        setTimeout(() => {
-            status.innerText = "Buscando rostro...";
-            status.style.backgroundColor = "transparent";
-            detectarBucle();
-        }, 5000);
-    }
+                    const detection = await faceapi
+                        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }))
+                        .withFaceLandmarks()
+                        .withFaceDescriptor();
 
-    async function capturarSecuencia() {
-        const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
-        
-        if(!det) return alert("No se ve un rostro claro.");
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        tempDescs.push(Array.from(det.descriptor));
-        document.getElementById("btn-capturar").innerText = `📸 CAPTURAR (${tempDescs.length}/3)`;
+                    if (detection) {
+                        const resized = faceapi.resizeResults(detection, displaySize);
+                        const box = resized.detection.box;
+                        ctx.strokeStyle = '#00ffcc';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(box.x, box.y, box.width, box.height);
 
-        if(tempDescs.length >= 3) {
-            const nombre = document.getElementById("reg-nombre").value;
-            const id = document.getElementById("reg-id").value;
-            if(!nombre || !id) return alert("Datos incompletos.");
+                        const match = faceMatcher.findBestMatch(detection.descriptor);
+                        if (match.label !== "unknown" && match.distance <= UMBRAL_ROSTRO) {
+                            procesandoChecada = true;
+                            await procesarChecada(match.label);
+                            return;
+                        }
+                    }
+                }
 
-            document.getElementById("txt-status").innerText = "Guardando en nube...";
-            
-            await fetch(WEB_APP_URL, {
-                method: 'POST',
-                body: JSON.stringify({
-                    action: "registrarUsuario",
-                    nombre: nombre,
-                    id: id,
-                    descriptores: JSON.stringify(tempDescs)
-                })
-            });
-            
-            alert("Empleado guardado con éxito.");
-            window.location.reload();
-        }
-    }
-</script>
+                loopId = requestAnimationFrame(detectarBucle);
+            }
+
+            async function procesarChecada(nombre) {
+                const status = document.getElementById("txt-status");
+                const sucursal = document.getElementById("txt-titulo").innerText;
+                const requiereUbic = !!mapaUbicacionEmpleados[nombre.toLowerCase()];
+
+                let coords = null;
+                if (requiereUbic) {
+                    status.style.backgroundColor = "#0d5c75";
+                    status.innerText = `Rostro reconocido (${nombre}). Validando ubicación...`;
+                    try {
+                        coords = await obtenerUbicacionActual();
+                    } catch (err) {
+                        status.style.backgroundColor = "#dc3545";
+                        status.innerText = `${nombre}: No se encuentra en el lugar de trabajo (GPS no disponible).`;
+                        setTimeout(() => {
+                            procesandoChecada = false;
+                            status.style.backgroundColor = "rgba(0,0,0,0.25)";
+                            status.innerText = "Buscando rostro...";
+                            detectarBucle();
+                        }, 4000);
+                        return;
+                    }
+                }
+
+                try {
+                    const resp = await fetch(WEB_APP_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({
+                            action: "registrarChecada",
+                            nombre: nombre,
+                            sucursal: sucursal,
+                            coords: coords,
+                            radioMetros: RADIO_PERMITIDO_METROS
+                        })
+                    });
+                    const res = await resp.json();
+
+                    if (res.status === "success") {
+                        status.style.backgroundColor = "#28a745";
+                        const distTexto = (res.distancia !== null && res.distancia !== undefined) ? ` · ${res.distancia}m` : "";
+                        status.innerText = `¡HOLA ${nombre.toUpperCase()}! Entrada registrada (${res.fechaHora})${distTexto}`;
+                        if (navigator.vibrate) navigator.vibrate(200);
+                    } else if (res.status === "fuera_de_rango") {
+                        status.style.backgroundColor = "#dc3545";
+                        status.innerText = `${nombre}: No se encuentra en el lugar de trabajo${res.distancia ? ` (${res.distancia}m)` : ""}.`;
+                        if (navigator.vibrate) navigator.vibrate([150, 100, 150]);
+                    } else {
+                        status.style.backgroundColor = "#ffc107";
+                        status.style.color = "#000";
+                        status.innerText = res.message || "No se pudo registrar la checada.";
+                    }
+                } catch (err) {
+                    status.style.backgroundColor = "#dc3545";
+                    status.innerText = "Error de comunicación al registrar: " + err.message;
+                }
+
+                setTimeout(() => {
+                    procesandoChecada = false;
+                    status.style.color = "#fff";
+                    status.style.backgroundColor = "rgba(0,0,0,0.25)";
+                    status.innerText = "Buscando rostro...";
+                    detectarBucle();
+                }, 4500);
+            }
+
+            async function capturarSecuencia() {
+                const det = await faceapi
+                    .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.55 }))
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+
+                if (!det) {
+                    return alert("No se detecta un rostro claro en el video. Acércate o mejora la iluminación.");
+                }
+
+                tempDescs.push(Array.from(det.descriptor));
+                document.getElementById("btn-capturar").innerText = `📸 CAPTURAR EN VIDEO (${tempDescs.length}/3)`;
+
+                if (tempDescs.length >= 3) {
+                    const nombre = document.getElementById("reg-nombre").value.trim();
+                    const id = document.getElementById("reg-id").value.trim();
+                    const requiereUbic = document.getElementById("chk-ubicacion").checked;
+
+                    if (!nombre || !id) {
+                        return alert("Nombre e ID son obligatorios.");
+                    }
+
+                    if (requiereUbic && !coordsRegistro) {
+                        try {
+                            coordsRegistro = await obtenerUbicacionActual();
+                        } catch (e) {
+                            return alert("Marcaste requerir ubicación pero no se pudo obtener el GPS: " + e);
+                        }
+                    }
+
+                    document.getElementById("txt-status").innerText = "Guardando empleado en la nube...";
+                    try {
+                        const resp = await fetch(WEB_APP_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                            body: JSON.stringify({
+                                action: "registrarUsuario",
+                                nombre: nombre,
+                                id: id,
+                                descriptores: JSON.stringify(tempDescs),
+                                requiereUbicacion: requiereUbic
+                            })
+                        });
+                        const res = await resp.json();
+                        if (res.status === "success") {
+                            alert("¡Empleado guardado con éxito!");
+                            window.location.reload();
+                        } else {
+                            alert("Aviso: " + (res.message || "No se pudo guardar."));
+                            document.getElementById("txt-status").innerText = "Listo para capturar.";
+                        }
+                    } catch (err) {
+                        alert("Error al guardar: " + err.message);
+                    }
+                }
+            }
+
+            function volverInicio() {
+                modoActual = "";
+                procesandoChecada = true;
+                if (loopId) cancelAnimationFrame(loopId);
+                if (stream) {
+                    stream.getTracks().forEach(t => t.stop());
+                    stream = null;
+                }
+                document.getElementById("pantalla-camara").classList.add("d-none");
+                document.getElementById("pantalla-inicio").classList.remove("d-none");
+            }
+    </script>
 
 </body>
 </html>
