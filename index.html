@@ -25,8 +25,12 @@
             background: #000;
             line-height: 0;
         }
-        video { width: 100%; height: auto; transform: scaleX(-1); }
-        canvas { position: absolute; top: 0; left: 0; transform: scaleX(-1); }
+        video { width: 100%; height: auto; }
+        canvas { position: absolute; top: 0; left: 0; }
+        .video-container.espejo video,
+        .video-container.espejo canvas {
+            transform: scaleX(-1);
+        }
         .btn-main {
             background-color: var(--primary-blue);
             color: white;
@@ -109,7 +113,8 @@
 
         <button class="btn-main mb-3" onclick="iniciarModo('checador')">🕒 INICIAR CHECADOR</button>
         <button class="btn btn-warning font-weight-bold w-100 mb-3 py-2 rounded-lg" onclick="iniciarModo('config')">📸 REGISTRO DE ROSTROS</button>
-        <button class="btn btn-info font-weight-bold w-100 mb-3 py-2 rounded-lg" onclick="abrirPantallaUbicacion()">📍 UBICACIÓN DE SUCURSAL</button>
+        <button class="btn btn-info font-weight-bold w-100 mb-3 py-2 rounded-lg" onclick="abrirPantallaUbicacion('editar')">📍 UBICACIÓN DE SUCURSAL</button>
+        <button class="btn btn-success font-weight-bold w-100 mb-3 py-2 rounded-lg" onclick="abrirPantallaUbicacion('nueva')">➕ AGREGAR SUCURSAL</button>
 
         <button class="btn btn-dark w-100 mt-2" onclick="cerrarSesion()">CERRAR SESIÓN</button>
     </div>
@@ -117,10 +122,15 @@
     <!-- 3. PANTALLA CÁMARA (CHECADOR Y REGISTRO DE ROSTROS) -->
     <div id="pantalla-camara" class="card-panel d-none">
         <h3 id="txt-titulo" class="text-white text-center h5 font-weight-bold mb-3"></h3>
-        <div class="video-container" id="video-container">
+        <div class="video-container espejo" id="video-container">
             <video id="video" autoplay muted playsinline></video>
             <canvas id="canvas"></canvas>
         </div>
+
+        <button type="button" id="btn-cambiar-camara" class="btn btn-light btn-sm font-weight-bold w-100 mt-2" onclick="alternarCamara()">
+            🔄 CAMBIAR CÁMARA (FRONTAL / TRASERA)
+        </button>
+
         <div id="txt-status" class="status-msg">Iniciando cámara...</div>
 
         <div id="controles-config" class="d-none mt-3">
@@ -147,13 +157,23 @@
         <button class="btn btn-dark w-100 mt-4" onclick="salirDeCamara()">VOLVER</button>
     </div>
 
-    <!-- 4. PANTALLA GUARDAR UBICACIÓN DE SUCURSAL -->
+    <!-- 4. PANTALLA EDITAR / AGREGAR SUCURSAL Y UBICACIÓN -->
     <div id="pantalla-ubicacion" class="card-panel d-none">
-        <h4 class="text-center text-white font-weight-bold mb-3">UBICACIÓN DE SUCURSAL</h4>
+        <h4 id="titulo-pantalla-sucursal" class="text-center text-white font-weight-bold mb-3">UBICACIÓN DE SUCURSAL</h4>
+
+        <div class="btn-group btn-group-toggle d-flex mb-3" data-toggle="buttons">
+            <label id="lbl-modo-editar" class="btn btn-light btn-sm font-weight-bold flex-fill active" onclick="cambiarModoSucursal('editar')">
+                <input type="radio" name="modoSuc" checked> ✏️ Editar Existente
+            </label>
+            <label id="lbl-modo-nueva" class="btn btn-light btn-sm font-weight-bold flex-fill" onclick="cambiarModoSucursal('nueva')">
+                <input type="radio" name="modoSuc"> ➕ Nueva Sucursal
+            </label>
+        </div>
 
         <div class="form-group">
             <label class="text-white font-weight-bold small">SUCURSAL:</label>
             <select id="ubi-sucursal" class="form-control" onchange="cargarCoordsActualesSucursal()"></select>
+            <input type="text" id="nueva-sucursal-nombre" class="form-control d-none" placeholder="Nombre de la nueva sucursal">
         </div>
 
         <div class="form-group">
@@ -169,7 +189,7 @@
             </button>
         </div>
 
-        <button class="btn-main mt-2" onclick="guardarUbicacionSucursal()">💾 GUARDAR UBICACIÓN</button>
+        <button id="btn-guardar-ubi" class="btn-main mt-2" onclick="guardarUbicacionSucursal()">💾 GUARDAR UBICACIÓN</button>
         <div id="ubi-status" class="status-msg d-none"></div>
         <button class="btn btn-dark w-100 mt-3" onclick="volverAlMenuDesdeUbicacion()">VOLVER AL MENÚ</button>
     </div>
@@ -177,9 +197,9 @@
 </div>
 
 <script>
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwgrJh7qsvYjSzdBLULBktvvY4lXcnsHIwt_P1WB8XYLvqq527nbOT39Eb65lSrpiMS/exec";
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyYmiWN8tFDPKAhVXZCeQ6527OftS8EbmbFejJ6okXt_o63Epe10JzHDMO-sIufClfd/exec";
     const UMBRAL_ROSTRO = 0.46;
-    const RADIO_METROS = 100;
+    const RADIO_METROS = 10;
 
     let sucursalActual = "";
     let esInvitado = false;
@@ -187,6 +207,8 @@
     let faceMatcher = null;
     let mapaUbicacion = {};
     let modoActual = "";
+    let modoSucursal = "editar"; // "editar" | "nueva"
+    let facingModeActual = "user"; // "user" (frontal) | "environment" (trasera)
     let tempDescs = [];
     let procesandoChecada = false;
     let loopId = null;
@@ -194,6 +216,26 @@
 
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
+    const videoContainer = document.getElementById('video-container');
+
+    function agregarSucursalEnSelects(nombreSucursal) {
+        const selLogin = document.getElementById("login-sucursal");
+        const selUbi = document.getElementById("ubi-sucursal");
+        const existe = Array.from(selUbi.options).some(
+            opt => opt.value.trim().toLowerCase() === nombreSucursal.trim().toLowerCase()
+        );
+        if (!existe) {
+            const o1 = document.createElement("option");
+            o1.value = nombreSucursal;
+            o1.text = nombreSucursal;
+            selLogin.add(o1);
+
+            const o2 = document.createElement("option");
+            o2.value = nombreSucursal;
+            o2.text = nombreSucursal;
+            selUbi.add(o2);
+        }
+    }
 
     window.onload = async () => {
         try {
@@ -212,20 +254,7 @@
             const data = await resp.json();
 
             rutasDetalle = data.rutasDetalle || [];
-            const selLogin = document.getElementById("login-sucursal");
-            const selUbi = document.getElementById("ubi-sucursal");
-
-            (data.sucursales || []).forEach(s => {
-                const o1 = document.createElement("option");
-                o1.value = s;
-                o1.text = s;
-                selLogin.add(o1);
-
-                const o2 = document.createElement("option");
-                o2.value = s;
-                o2.text = s;
-                selUbi.add(o2);
-            });
+            (data.sucursales || []).forEach(s => agregarSucursalEnSelects(s));
 
             if (data.rostros && data.rostros.length > 0) {
                 const labeled = [];
@@ -327,6 +356,54 @@
         });
     }
 
+    async function abrirStreamCamara() {
+        if (loopId) cancelAnimationFrame(loopId);
+        if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+            stream = null;
+        }
+
+        if (facingModeActual === "user") {
+            videoContainer.classList.add("espejo");
+        } else {
+            videoContainer.classList.remove("espejo");
+        }
+
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { ideal: facingModeActual }, width: { ideal: 640 }, height: { ideal: 480 } },
+            audio: false
+        });
+        video.srcObject = stream;
+
+        return new Promise((resolve) => {
+            video.onloadedmetadata = () => {
+                video.play();
+                const size = { width: video.clientWidth, height: video.clientHeight };
+                if (size.width > 0 && size.height > 0) {
+                    faceapi.matchDimensions(canvas, size);
+                }
+                resolve();
+            };
+        });
+    }
+
+    async function alternarCamara() {
+        facingModeActual = (facingModeActual === "user") ? "environment" : "user";
+        const st = document.getElementById("txt-status");
+        st.style.backgroundColor = "rgba(0,0,0,0.25)";
+        st.innerText = facingModeActual === "environment" ? "Cambiando a cámara trasera..." : "Cambiando a cámara frontal...";
+
+        try {
+            await abrirStreamCamara();
+            st.innerText = modoActual === "checador" ? "Buscando rostro..." : "Listo para capturar rostro...";
+            if (modoActual === "checador" && !procesandoChecada) {
+                detectarBucle();
+            }
+        } catch (err) {
+            st.innerText = "No se pudo cambiar cámara: " + err.message;
+        }
+    }
+
     async function iniciarModo(modo) {
         modoActual = modo;
         procesandoChecada = false;
@@ -343,19 +420,10 @@
         }
 
         try {
-            stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
-                audio: false
-            });
-            video.srcObject = stream;
-            document.getElementById("txt-status").innerText = "Buscando rostro...";
-
-            video.onloadedmetadata = () => {
-                video.play();
-                const size = { width: video.clientWidth, height: video.clientHeight };
-                faceapi.matchDimensions(canvas, size);
-                if (modo === "checador") detectarBucle();
-            };
+            document.getElementById("txt-status").innerText = "Iniciando cámara...";
+            await abrirStreamCamara();
+            document.getElementById("txt-status").innerText = modo === "checador" ? "Buscando rostro..." : "Listo para capturar rostro...";
+            if (modo === "checador") detectarBucle();
         } catch (err) {
             document.getElementById("txt-status").innerText = "Error de cámara: " + err.message;
         }
@@ -513,11 +581,41 @@
         }
     }
 
-    function abrirPantallaUbicacion() {
-        document.getElementById("ubi-sucursal").value = sucursalActual || document.getElementById("ubi-sucursal").value;
+    function cambiarModoSucursal(modo) {
+        modoSucursal = modo;
+        const sel = document.getElementById("ubi-sucursal");
+        const inpNueva = document.getElementById("nueva-sucursal-nombre");
+        const btn = document.getElementById("btn-guardar-ubi");
+        const titulo = document.getElementById("titulo-pantalla-sucursal");
+        const lblEditar = document.getElementById("lbl-modo-editar");
+        const lblNueva = document.getElementById("lbl-modo-nueva");
+
         document.getElementById("ubi-pass").value = "";
         document.getElementById("ubi-status").classList.add("d-none");
-        cargarCoordsActualesSucursal();
+
+        if (modo === "nueva") {
+            lblNueva.classList.add("active");
+            lblEditar.classList.remove("active");
+            titulo.innerText = "AGREGAR NUEVA SUCURSAL";
+            sel.classList.add("d-none");
+            inpNueva.classList.remove("d-none");
+            inpNueva.value = "";
+            document.getElementById("ubi-coords").value = "";
+            btn.innerText = "➕ AGREGAR SUCURSAL";
+        } else {
+            lblEditar.classList.add("active");
+            lblNueva.classList.remove("active");
+            titulo.innerText = "UBICACIÓN DE SUCURSAL";
+            inpNueva.classList.add("d-none");
+            sel.classList.remove("d-none");
+            cargarCoordsActualesSucursal();
+            btn.innerText = "💾 GUARDAR UBICACIÓN";
+        }
+    }
+
+    function abrirPantallaUbicacion(modoInicial = "editar") {
+        document.getElementById("ubi-sucursal").value = sucursalActual || document.getElementById("ubi-sucursal").value;
+        cambiarModoSucursal(modoInicial);
         mostrarPantalla("pantalla-ubicacion");
     }
 
@@ -544,13 +642,59 @@
     }
 
     async function guardarUbicacionSucursal() {
-        const suc = document.getElementById("ubi-sucursal").value;
         const pass = document.getElementById("ubi-pass").value.trim();
         const ubi = document.getElementById("ubi-coords").value.trim();
         const st = document.getElementById("ubi-status");
 
         st.classList.remove("d-none");
         st.style.backgroundColor = "#0d5c75";
+
+        if (modoSucursal === "nueva") {
+            const nuevaSuc = document.getElementById("nueva-sucursal-nombre").value.trim();
+            if (!nuevaSuc || !pass) {
+                st.style.backgroundColor = "#dc3545";
+                st.innerText = "Escribe el nombre de la sucursal y su contraseña.";
+                return;
+            }
+            st.innerText = "Agregando sucursal...";
+
+            try {
+                const resp = await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        action: "agregarSucursal",
+                        sucursal: nuevaSuc,
+                        password: pass,
+                        ubicacion: ubi
+                    })
+                });
+                const res = await resp.json();
+
+                if (res.status === "success") {
+                    rutasDetalle.push({
+                        sucursal: res.sucursal,
+                        lugarTrabajo: res.lugarTrabajo || "",
+                        lat: null,
+                        lng: null
+                    });
+                    agregarSucursalEnSelects(res.sucursal);
+                    document.getElementById("nueva-sucursal-nombre").value = "";
+                    document.getElementById("ubi-pass").value = "";
+                    st.style.backgroundColor = "#28a745";
+                    st.innerText = res.message;
+                } else {
+                    st.style.backgroundColor = "#dc3545";
+                    st.innerText = res.message || "No se pudo agregar la sucursal.";
+                }
+            } catch (err) {
+                st.style.backgroundColor = "#dc3545";
+                st.innerText = "Error de red: " + err.message;
+            }
+            return;
+        }
+
+        const suc = document.getElementById("ubi-sucursal").value;
         st.innerText = "Guardando ubicación...";
 
         try {
